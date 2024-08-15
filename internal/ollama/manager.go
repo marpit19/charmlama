@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -128,14 +129,21 @@ func (m *Manager) SendMessage(model, message string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Response string `json:"response"`
-	}
-
+	var fullResponse strings.Builder
 	decoder := json.NewDecoder(resp.Body)
-	if err := decoder.Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to parse response: %v", err)
+	for decoder.More() {
+		var result struct {
+			Response string `json:"response"`
+			Done     bool   `json:"done"`
+		}
+		if err := decoder.Decode(&result); err != nil {
+			return "", fmt.Errorf("failed to parse response: %v", err)
+		}
+		fullResponse.WriteString(result.Response)
+		if result.Done {
+			break
+		}
 	}
 
-	return result.Response, nil
+	return fullResponse.String(), nil
 }
