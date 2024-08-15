@@ -19,6 +19,7 @@ type ChatInterface struct {
 	messages []string
 	err      error
 	ready    bool
+	quitting bool
 }
 
 func NewChatInterface(model string, manager *ollama.Manager) *ChatInterface {
@@ -58,10 +59,14 @@ func (c *ChatInterface) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return c, nil
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlC:
 			return c, tea.Quit
 		case tea.KeyEnter:
 			if c.ready && c.textarea.Value() != "" {
+				if c.textarea.Value() == "/exit" {
+					c.quitting = true
+					return c, tea.Quit
+				}
 				return c, c.sendMessage
 			}
 		}
@@ -80,8 +85,11 @@ func (c *ChatInterface) View() string {
 	if !c.ready {
 		return "Initializing chat interface..."
 	}
+	if c.quitting {
+		return "Exiting chat... Press any key to return to model selection."
+	}
 	return fmt.Sprintf(
-		"%s\n\n%s",
+		"%s\n\n%s\n\nType '/exit' to return to model selection",
 		c.viewport.View(),
 		c.textarea.View(),
 	)
@@ -110,10 +118,10 @@ func (c *ChatInterface) updateViewportContent() {
 
 type errMsg struct{ error }
 
-func (c *ChatInterface) Run() error {
+func (c *ChatInterface) Run() (bool, error) {
 	p := tea.NewProgram(c, tea.WithAltScreen())
 	_, err := p.Run()
-	return err
+	return c.quitting, err
 }
 
 var messageStyle = lipgloss.NewStyle().Padding(0, 1)

@@ -56,26 +56,45 @@ var rootCmd = &cobra.Command{
 
 		fmt.Println("Welcome to CharmLlama! Ollama server is running and ready.")
 
-		// Get available models
-		availableModels, err := ollamaManager.GetAvailableModels()
-		if err != nil {
-			fmt.Printf("Failed to get available models: %v\n", err)
-			return
-		}
+		for {
+			// Get available models
+			availableModels, err := ollamaManager.GetAvailableModels()
+			if err != nil {
+				fmt.Printf("Failed to get available models: %v\n", err)
+				return
+			}
 
-		// Select model
-		selectedModel, err := models.SelectModel(availableModels)
-		if err != nil {
-			fmt.Printf("Failed to select model: %v\n", err)
-			return
-		}
+			// Select model
+			selectedModel, err := models.SelectModel(availableModels)
+			if err != nil {
+				if err == models.ErrUserQuit {
+					fmt.Println("Exiting CharmLlama. Goodbye!")
+					return
+				}
+				fmt.Printf("Failed to select model: %v\n", err)
+				return
+			}
 
-		fmt.Printf("Selected model: %s\n", selectedModel)
+			if selectedModel == "" {
+				fmt.Println("No model selected. Exiting CharmLlama.")
+				return
+			}
 
-		// Start chat interface
-		chatInterface := chat.NewChatInterface(selectedModel, ollamaManager)
-		if err := chatInterface.Run(); err != nil {
-			fmt.Printf("Chat interface error: %v\n", err)
+			fmt.Printf("Selected model: %s\n", selectedModel)
+
+			// Start chat interface
+			chatInterface := chat.NewChatInterface(selectedModel, ollamaManager)
+			returnToSelection, err := chatInterface.Run()
+			if err != nil {
+				fmt.Printf("Chat interface error: %v\n", err)
+				return
+			}
+
+			if !returnToSelection {
+				break
+			}
+
+			fmt.Println("Returning to model selection...")
 		}
 
 		// When exiting, stop the server if we started it
