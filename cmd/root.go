@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/marpit19/charmlama/internal/chat"
+	"github.com/marpit19/charmlama/internal/models"
 	"github.com/marpit19/charmlama/internal/ollama"
 	"github.com/spf13/cobra"
 )
@@ -53,7 +55,28 @@ var rootCmd = &cobra.Command{
 		}
 
 		fmt.Println("Welcome to CharmLlama! Ollama server is running and ready.")
-		// Here we'll eventually start the main application loop
+
+		// Get available models
+		availableModels, err := ollamaManager.GetAvailableModels()
+		if err != nil {
+			fmt.Printf("Failed to get available models: %v\n", err)
+			return
+		}
+
+		// Select model
+		selectedModel, err := models.SelectModel(availableModels)
+		if err != nil {
+			fmt.Printf("Failed to select model: %v\n", err)
+			return
+		}
+
+		fmt.Printf("Selected model: %s\n", selectedModel)
+
+		// Start chat interface
+		chatInterface := chat.NewChatInterface(selectedModel, ollamaManager)
+		if err := chatInterface.Run(); err != nil {
+			fmt.Printf("Chat interface error: %v\n", err)
+		}
 
 		// When exiting, stop the server if we started it
 		defer func() {

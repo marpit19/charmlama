@@ -1,7 +1,10 @@
 package ollama
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os/exec"
 	"runtime"
@@ -77,4 +80,62 @@ func (m *Manager) StopServer() error {
 	}
 	m.ServerStartedByUs = false
 	return nil
+}
+
+func (m *Manager) GetAvailableModels() ([]string, error) {
+	resp, err := http.Get("http://localhost:11434/api/tags")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available models: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	var result struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	var models []string
+	for _, model := range result.Models {
+		models = append(models, model.Name)
+	}
+
+	return models, nil
+}
+
+func (m *Manager) SendMessage(model, message string) (string, error) {
+	requestBody, err := json.Marshal(map[string]string{
+		"model":  model,
+		"prompt": message,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create request body: %v", err)
+	}
+
+	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to send message: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Response string `json:"response"`
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to parse response: %v", err)
+	}
+
+	return result.Response, nil
 }
