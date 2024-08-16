@@ -78,10 +78,14 @@ func (c *ChatInterface) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			c.quitting = true
 			return c, tea.Quit
 		case "enter":
+			if c.input.Value() == "/exit" {
+				c.quitting = true
+				return c, tea.Quit
+			}
 			if !c.waiting && c.input.Value() != "" {
 				cmds = append(cmds, c.sendMessage)
 			}
-		case "up", "down":
+		case "up", "down", "pgup", "pgdown":
 			c.viewport, _ = c.viewport.Update(msg)
 		}
 
@@ -121,10 +125,16 @@ func (c *ChatInterface) View() string {
 		status = "Ready for your message"
 	}
 
+	inputView := c.input.View()
+	maxInputWidth := c.width - 4 // Adjust this value as needed
+	if len(inputView) > maxInputWidth && maxInputWidth > 0 {
+		inputView = inputView[:maxInputWidth] + "..."
+	}
+
 	return fmt.Sprintf(
 		"%s\n%s\n%s",
 		c.viewport.View(),
-		inputStyle.Render(c.input.View()),
+		inputStyle.Render(inputView),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#98FB98")).Render(status),
 	)
 }
@@ -157,13 +167,45 @@ func (c *ChatInterface) addMessage(sender, content string) {
 		style = aiStyle
 	}
 	formattedMsg := style.Render(sender+":") + " " + content
-	c.messages = append(c.messages, formattedMsg)
+	wrappedMsg := c.wrapText(formattedMsg, c.width)
+	c.messages = append(c.messages, wrappedMsg)
 	c.updateViewportContent()
 }
 
 func (c *ChatInterface) updateViewportContent() {
 	c.viewport.SetContent(strings.Join(c.messages, "\n\n"))
 	c.viewport.GotoBottom()
+}
+
+func (c *ChatInterface) wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+
+	var lines []string
+	var currentLine string
+
+	for _, word := range words {
+		if len(currentLine)+len(word)+1 > width {
+			lines = append(lines, strings.TrimSpace(currentLine))
+			currentLine = word
+		} else {
+			if currentLine != "" {
+				currentLine += " "
+			}
+			currentLine += word
+		}
+	}
+
+	if currentLine != "" {
+		lines = append(lines, strings.TrimSpace(currentLine))
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func (c *ChatInterface) Run() (bool, error) {
