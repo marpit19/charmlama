@@ -7,7 +7,7 @@ CharmLlama is a delightful CLI-based chat application that allows you to interac
 </p>
 
 <p align="center">
-  <img src="images/output.gif" alt="CharmLlama Demo" width="600"/>
+  <img src="images/output.gif" alt="CharmLlama Demo" />
 </p>
 
 ## Features
