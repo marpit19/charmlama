@@ -29,6 +29,19 @@ If you have Go installed, you can install CharmLlama using:
 go install github.com/marpit19/charmlama@latest
 ```
 
+If the binary exists, add the Go bin directory to your PATH:
+For Zsh, add this line to your ~/.zshrc file:
+
+```bash
+export PATH=$PATH:$(go env GOPATH)/bin
+```
+
+Then reload your shell configuration:
+
+```bash
+source ~/.zshrc
+```
+
 ### Option 2: Download Binary
 
 1. Visit the [Releases](https://github.com/yourusername/charmlama/releases) page.
