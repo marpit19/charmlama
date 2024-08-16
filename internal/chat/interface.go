@@ -2,58 +2,70 @@ package chat
 
 import (
 	"fmt"
-	"io"
+	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/marpit19/charmlama/internal/ollama"
 )
 
 var (
-	userStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
-	aiStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	userStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF69B4")). // Hot Pink
+			Bold(true)
+
+	aiStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#00FFFF")). // Cyan
+		Bold(true)
+
+	inputStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("#FF1493")). // Deep Pink
+			Foreground(lipgloss.Color("#FFFFFF"))        // White text
 )
-
-type message struct {
-	sender  string
-	content string
-}
-
-func (m message) Title() string       { return m.sender }
-func (m message) Description() string { return m.content }
-func (m message) FilterValue() string { return m.content }
 
 type ChatInterface struct {
 	model    string
 	manager  *ollama.Manager
-	messages list.Model
-	textarea textarea.Model
+	messages []string
+	viewport viewport.Model
+	input    textinput.Model
 	err      error
 	quitting bool
+	waiting  bool
+	spinner  spinner.Model
+	width    int
+	height   int
 }
 
 func NewChatInterface(model string, manager *ollama.Manager) *ChatInterface {
-	ta := textarea.New()
-	ta.Placeholder = "Send a message..."
-	ta.Focus()
+	input := textinput.New()
+	input.Placeholder = "Send a message... (Type /exit to quit)"
+	input.Focus()
 
-	messageList := list.New([]list.Item{}, itemDelegate{}, 0, 0)
-	messageList.Title = "Chat with " + model
-	messageList.SetShowStatusBar(false)
-	messageList.SetFilteringEnabled(false)
+	vp := viewport.New(80, 20)
+	vp.KeyMap.PageDown.SetEnabled(false)
+	vp.KeyMap.PageUp.SetEnabled(false)
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFA500"))
 
 	return &ChatInterface{
 		model:    model,
 		manager:  manager,
-		messages: messageList,
-		textarea: ta,
+		messages: []string{},
+		viewport: vp,
+		input:    input,
+		spinner:  s,
 	}
 }
 
 func (c *ChatInterface) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, c.messages.StartSpinner())
+	return textinput.Blink
 }
 
 func (c *ChatInterface) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -61,47 +73,65 @@ func (c *ChatInterface) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		switch msg.String() {
+		case "ctrl+c", "/exit":
 			c.quitting = true
 			return c, tea.Quit
-		case tea.KeyEnter:
-			if c.textarea.Value() != "" {
+		case "enter":
+			if !c.waiting && c.input.Value() != "" {
 				cmds = append(cmds, c.sendMessage)
 			}
+		case "up", "down":
+			c.viewport, _ = c.viewport.Update(msg)
 		}
+
 	case tea.WindowSizeMsg:
-		h, v := appStyle.GetFrameSize()
-		c.messages.SetSize(msg.Width-h, msg.Height-v-3)
-		c.textarea.SetWidth(msg.Width - h)
+		c.width, c.height = msg.Width, msg.Height
+		c.viewport.Width = msg.Width
+		c.viewport.Height = msg.Height - 3
+		c.input.Width = msg.Width - 4
+		c.updateViewportContent()
+
 	case userMessageMsg:
 		c.addMessage("You", string(msg))
-		cmds = append(cmds, c.handleUserMessage(msg))
+		c.waiting = true
+		cmds = append(cmds, c.handleUserMessage(msg), c.spinner.Tick)
+
 	case aiResponseMsg:
-		c.addMessage("AI", string(msg))
+		c.waiting = false
+		c.addMessage(c.model, string(msg))
 	}
 
-	var cmd tea.Cmd
-	c.textarea, cmd = c.textarea.Update(msg)
-	cmds = append(cmds, cmd)
+	if c.waiting {
+		var cmd tea.Cmd
+		c.spinner, cmd = c.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
-	c.messages, cmd = c.messages.Update(msg)
-	cmds = append(cmds, cmd)
+	c.input, _ = c.input.Update(msg)
 
 	return c, tea.Batch(cmds...)
 }
 
 func (c *ChatInterface) View() string {
+	var status string
+	if c.waiting {
+		status = fmt.Sprintf("%s AI is thinking...", c.spinner.View())
+	} else {
+		status = "Ready for your message"
+	}
+
 	return fmt.Sprintf(
-		"%s\n\n%s",
-		c.messages.View(),
-		c.textarea.View(),
+		"%s\n%s\n%s",
+		c.viewport.View(),
+		inputStyle.Render(c.input.View()),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#98FB98")).Render(status),
 	)
 }
 
 func (c *ChatInterface) sendMessage() tea.Msg {
-	userMessage := c.textarea.Value()
-	c.textarea.Reset()
+	userMessage := c.input.Value()
+	c.input.SetValue("")
 	return userMessageMsg(userMessage)
 }
 
@@ -122,7 +152,18 @@ func (c *ChatInterface) handleUserMessage(msg userMessageMsg) tea.Cmd {
 }
 
 func (c *ChatInterface) addMessage(sender, content string) {
-	c.messages.InsertItem(len(c.messages.Items()), message{sender: sender, content: content})
+	style := userStyle
+	if sender != "You" {
+		style = aiStyle
+	}
+	formattedMsg := style.Render(sender+":") + " " + content
+	c.messages = append(c.messages, formattedMsg)
+	c.updateViewportContent()
+}
+
+func (c *ChatInterface) updateViewportContent() {
+	c.viewport.SetContent(strings.Join(c.messages, "\n\n"))
+	c.viewport.GotoBottom()
 }
 
 func (c *ChatInterface) Run() (bool, error) {
@@ -139,25 +180,3 @@ func (c *ChatInterface) Run() (bool, error) {
 
 	return chatInterface.quitting, chatInterface.err
 }
-
-type itemDelegate struct{}
-
-func (d itemDelegate) Height() int                             { return 1 }
-func (d itemDelegate) Spacing() int                            { return 0 }
-func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
-func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
-	i, ok := listItem.(message)
-	if !ok {
-		return
-	}
-
-	str := fmt.Sprintf("%s: %s", i.sender, i.content)
-	if i.sender == "You" {
-		str = userStyle.Render(str)
-	} else {
-		str = aiStyle.Render(str)
-	}
-	fmt.Fprint(w, str)
-}
-
-var appStyle = lipgloss.NewStyle().Padding(1, 2)
