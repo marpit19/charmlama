@@ -2,7 +2,13 @@
 
 CharmLlama is a delightful CLI-based chat application that allows you to interact with Ollama's open-source language models locally. Built with Go and Charm libraries, it offers a rich terminal experience for AI-powered conversations.
 
-![CharmLlama Logo](images/Logo.jpeg)
+<p align="center">
+  <img src="images/Logo.jpeg" alt="CharmLlama Logo" width="200"/>
+</p>
+
+<p align="center">
+  <img src="images/output.gif" alt="CharmLlama Demo" width="600"/>
+</p>
 
 ## Features
 
@@ -44,7 +50,7 @@ source ~/.zshrc
 
 ### Option 2: Download Binary
 
-1. Visit the [Releases](https://github.com/yourusername/charmlama/releases) page.
+1. Visit the [Releases](https://github.com/marpit19/charmlama/releases) page.
 2. Download the appropriate binary for your operating system:
    - Windows: `charmlama-vX.X.X-windows-amd64.exe`
    - macOS: `charmlama-vX.X.X-darwin-amd64`
@@ -103,8 +109,10 @@ CharmLlama is released under the MIT License. See the [LICENSE](LICENSE) file fo
 
 ## Support
 
-If you encounter any issues or have questions, please [open an issue](https://github.com/yourusername/charmlama/issues/new) on our GitHub repository.
+If you encounter any issues or have questions, please [open an issue](https://github.com/marpit19/charmlama/issues/new) on our GitHub repository.
 
 ---
 
-Built with ❤️ by Arpit Mohapatra
+<p align="center">
+  Built with ❤️ by Arpit Mohapatra
+</p>
