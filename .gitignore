@@ -26,3 +26,8 @@ go.work
 
 # Build output
 /charmlama
+charmlama
+charmlama-v0.1.0-darwin-amd64
+charmlama-v0.1.0-linux-amd64
+charmlama-v0.1.0-windows-amd64.exe
+build.sh
